@@ -7,9 +7,42 @@ import {
   MILITARY_BASES,
   UNDERSEA_CABLES,
   NUCLEAR_FACILITIES,
-  AI_DATA_CENTERS,
   PIPELINES,
 } from '@/config';
+
+type AssetIndexEntry = { id: string; name: string; lat: number; lon: number };
+
+// The ~86KB ai-datacenters table is lazy-loaded (not statically imported) so it
+// stays off the eager dashboard critical path; related-assets is reached eagerly
+// via country-intel, which would otherwise pin the table to the entry chunk.
+let datacenterIndex: AssetIndexEntry[] | null = null;
+let datacenterIndexPromise: Promise<void> | null = null;
+
+export function preloadDatacenterIndex(): Promise<void> {
+  if (datacenterIndex !== null) return Promise.resolve();
+  if (!datacenterIndexPromise) {
+    datacenterIndexPromise = import('@/config/ai-datacenters')
+      .then(({ AI_DATA_CENTERS }) => {
+        datacenterIndex = AI_DATA_CENTERS.map(dc => ({ id: dc.id, name: dc.name, lat: dc.lat, lon: dc.lon }));
+      })
+      .catch((error) => {
+        datacenterIndexPromise = null;
+        throw error;
+      });
+  }
+  return datacenterIndexPromise;
+}
+
+export function preloadRelatedAssetTables(titles: string[]): Promise<boolean> {
+  if (!detectAssetTypes(titles).includes('datacenter') || datacenterIndex !== null) {
+    return Promise.resolve(false);
+  }
+  return preloadDatacenterIndex().then(() => true);
+}
+
+function ensureDatacenterIndex(): void {
+  void preloadDatacenterIndex().catch(() => {});
+}
 
 const MAX_DISTANCE_KM = 300;
 const MAX_ASSETS_PER_TYPE = 3;
@@ -100,7 +133,8 @@ function buildAssetIndex(type: AssetType): Array<{ id: string; name: string; lat
         return { id: cable.id, name: cable.name, lat: mid.lat, lon: mid.lon };
       });
     case 'datacenter':
-      return AI_DATA_CENTERS.map(dc => ({ id: dc.id, name: dc.name, lat: dc.lat, lon: dc.lon }));
+      ensureDatacenterIndex();
+      return datacenterIndex ?? [];
     case 'base':
       return MILITARY_BASES.map(base => ({ id: base.id, name: base.name, lat: base.lat, lon: base.lon }));
     case 'nuclear':
