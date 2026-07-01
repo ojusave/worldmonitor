@@ -11,7 +11,7 @@
 # ais-relay stay private services on the internal network.
 #
 # PORT=8080 matches nginx in docker/nginx.conf.
-# redis-rest listens on Render's private port 10000; ais-relay on 3004.
+# redis-rest listens on PORT=80 (same as docker-compose); ais-relay on 3004.
 
 previews:
   generation: off
@@ -49,7 +49,7 @@ projects:
               - key: LOCAL_API_PORT
                 value: "46123"
               - key: UPSTASH_REDIS_REST_URL
-                value: http://redis-rest:10000
+                value: http://redis-rest:80
               - key: UPSTASH_REDIS_REST_TOKEN
                 fromService:
                   type: pserv
@@ -75,10 +75,12 @@ projects:
             runtime: docker
             plan: starter
             region: oregon
-            dockerfilePath: Dockerfile.redis-rest
+            dockerfilePath: ./docker/Dockerfile.redis-rest
             dockerContext: docker
             envVars:
               - fromGroup: worldmonitor-stack
+              - key: PORT
+                value: "80"
               - key: SRH_CONNECTION_STRING
                 fromService:
                   type: keyvalue
