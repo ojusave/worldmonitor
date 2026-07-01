@@ -40,7 +40,7 @@ projects:
             region: oregon
             dockerfilePath: ./Dockerfile
             dockerContext: .
-            healthCheckPath: /api/health
+            healthCheckPath: /
             maxShutdownDelaySeconds: 120
             envVars:
               - fromGroup: worldmonitor-stack
