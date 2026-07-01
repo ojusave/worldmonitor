@@ -5,17 +5,13 @@
 #
 # Deploy: https://render.com/deploy?repo=https://github.com/render-examples/worldmonitor
 #
-# Pattern: docker-fork — multi-stage Dockerfile (nginx + Node API sidecar).
-# Mirrors the self-hosted Docker stack with Render-managed Key Value instead of
-# a local Redis container, plus private redis-rest and ais-relay services.
+# Config-only Blueprint: no app code changes. Env names and values mirror
+# docker-compose.yml (UPSTASH_REDIS_REST_*, WS_RELAY_URL, LOCAL_API_*).
+# Render Key Value replaces the compose Redis container; redis-rest and
+# ais-relay stay private services on the internal network.
 #
-# After first deploy:
-#   1. Open the worldmonitor service URL and confirm /api/health is OK.
-#   2. Add optional API keys in the Dashboard (GROQ_API_KEY, FRED_API_KEY, etc.).
-#   3. Seed Redis from your machine — see SELF_HOSTING.md (run-seeders.sh) using
-#      the redis-rest internal URL or run seeders via Render Shell once wired.
-#
-# PORT=8080 matches nginx in docker/nginx.conf (not Render's default 10000).
+# PORT=8080 matches nginx in docker/nginx.conf.
+# redis-rest PORT=80 and ais-relay PORT=3004 match compose service ports.
 
 previews:
   generation: off
@@ -27,7 +23,7 @@ envVarGroups:
         value: docker
       - key: LOCAL_API_CLOUD_FALLBACK
         value: "false"
-      - key: REDIS_TOKEN
+      - key: SRH_TOKEN
         generateValue: true
       - key: RELAY_SHARED_SECRET
         generateValue: true
@@ -50,16 +46,17 @@ projects:
               - fromGroup: worldmonitor-stack
               - key: PORT
                 value: "8080"
-              - key: REDIS_REST_HOSTPORT
+              - key: LOCAL_API_PORT
+                value: "46123"
+              - key: UPSTASH_REDIS_REST_URL
+                value: http://redis-rest:80
+              - key: UPSTASH_REDIS_REST_TOKEN
                 fromService:
                   type: pserv
                   name: redis-rest
-                  property: hostport
-              - key: AIS_RELAY_HOSTPORT
-                fromService:
-                  type: pserv
-                  name: ais-relay
-                  property: hostport
+                  envVarKey: SRH_TOKEN
+              - key: WS_RELAY_URL
+                value: http://ais-relay:3004
               - key: GROQ_API_KEY
                 sync: false
               - key: OPENROUTER_API_KEY
@@ -82,6 +79,8 @@ projects:
             dockerContext: ./docker
             envVars:
               - fromGroup: worldmonitor-stack
+              - key: PORT
+                value: "80"
               - key: SRH_CONNECTION_STRING
                 fromService:
                   type: keyvalue
@@ -97,6 +96,8 @@ projects:
             dockerContext: .
             envVars:
               - fromGroup: worldmonitor-stack
+              - key: PORT
+                value: "3004"
               - key: AISSTREAM_API_KEY
                 sync: false
 
